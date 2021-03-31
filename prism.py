@@ -3,6 +3,14 @@ import pandas as pd
 from sklearn.preprocessing import KBinsDiscretizer
 
 
+class Rule:
+    def __init__(self, label):
+        self.label = label
+        self.antecedent = []
+        self.precision = None
+        self.recall = None
+
+
 class Prism:
 
     _op_map = {
@@ -34,12 +42,12 @@ class Prism:
         all_attr = data.columns.drop(target)
 
         # main loop - generate rules for each class
-        for class_, unclass_count in zip(classes, counts):
+        for label, unclass_count in zip(classes, counts):
             instance_set = data
             total_tp = unclass_count
 
             while unclass_count > 0:
-                rule = []
+                rule = Rule(label=label)
                 unused_attr = list(all_attr)
                 rule_coverage = instance_set
                 precision = 0
@@ -54,7 +62,7 @@ class Prism:
                     for attr in unused_attr:
                         for value in rule_coverage[attr].unique():
                             selector = rule_coverage[attr].values == value
-                            tp = (rule_coverage[target][selector].values == class_).sum()
+                            tp = (rule_coverage[target].values[selector] == label).sum()
                             tp_fp = selector.sum()
                             selector_precision = tp / tp_fp
                             if selector_precision > precision or selector_precision == precision and tp > best_tp:
@@ -71,16 +79,18 @@ class Prism:
                         idx = num_attr.get_loc(best_attr)
                         edges = bin_edges[idx]
                         if best_value == 0:  # lower interval
-                            rule.append((best_attr, '<', edges[1]))
+                            rule.antecedent.append((best_attr, '<', edges[1]))
                         elif best_value == len(edges)-2:  # higher interval
-                            rule.append((best_attr, '>=', edges[-2]))
+                            rule.antecedent.append((best_attr, '>=', edges[-2]))
                         else:  # anything inbetween
-                            rule.append((best_attr, '>=', edges[best_value]))
-                            rule.append((best_attr, '<', edges[best_value+1]))
+                            rule.antecedent.append((best_attr, '>=', edges[best_value]))
+                            rule.antecedent.append((best_attr, '<', edges[best_value+1]))
                     else:
-                        rule.append((best_attr, '==', best_value))
+                        rule.antecedent.append((best_attr, '==', best_value))
 
-                rule.append((class_, precision, best_tp / total_tp))
+                rule.label = label
+                rule.precision = precision
+                rule.recall = best_tp / total_tp
                 ruleset.append(rule)
                 instance_set = instance_set.drop(rule_coverage.index)
                 unclass_count -= best_tp
@@ -95,81 +105,37 @@ class Prism:
             label = None
             for rule in self.ruleset_:
                 if self._apply_rule(rule, ins):
-                    label = rule[-1][0]
+                    label = rule.label
                     break
             labels.append(label or self.majority_)
                 
         return np.array(labels)
 
     def _apply_rule(self, rule, instance):
-        for attr, op_str, value in rule[:-1]:
+        for attr, op_str, value in rule.antecedent:
             op = self._op_map[op_str]
             if not op(instance[attr], value):
                 return False
         return True
 
-    def _parse_file(self, filename):
-        with open(filename, 'r') as f:
-            lines = f.read().strip().splitlines()
-
-        ruleset = []
-        target = None
-        
-        try:
-            for line in lines:
-                if_part, then_part = line.split(') THEN (')
-                antecedent = if_part.split(': IF (')[1]
-                selectors = antecedent.split(') AND (')
-
-                # create rule by parsing selectors
-                rule = []
-                for sel in selectors:
-                    for op in self._op_map.keys():
-                        if op in sel:
-                            attr, val = sel.split(f' {op} ')
-                            rule.append((attr, op, self._parse_value(val)))
-                            break
-                
-                if target is None:
-                    target = then_part.split(' == ')[0]
-
-                class_ = self._parse_value(then_part.split(' == ')[1].split(') [')[0])
-                precision = float(then_part.split(') [')[1].split(']')[0])
-                rule.append((class_, precision))
-                ruleset.append(rule)
-        except:
-            raise Exception('PRISM: Error while parsing rules file.')
-
-        self.ruleset_ = ruleset
-        self.target_ = target
-
-    def _parse_value(self, value_str):
-        try:
-            return int(value_str)
-        except (ValueError, TypeError):
-            try:
-                return float(value_str)
-            except (ValueError, TypeError):
-                return value_str
-
     def __str__(self):
         if hasattr(self, 'ruleset_'):
-            text = ''
+            text = '\n'
             for i, rule in enumerate(self.ruleset_):
                 selectors = []
-                for attr, op, val in rule[:-1]:
+                for attr, op, val in rule.antecedent:
                     if op == '==':
                         selectors.append((attr, op, val))
                     else:
                         selectors.append((attr, op, round(val, 2)))
 
                 antecedent = ' AND '.join([f'({attr} {op} {val})' for attr, op, val in selectors])
-                consequent = str(rule[-1][0])
-                precision = round(rule[-1][1], 2)
-                recall = round(rule[-1][2], 2)
+                label = str(rule.label)
+                precision = round(rule.precision, 2)
+                recall = round(rule.recall, 2)
                 
                 text += padding(i+1, len(self.ruleset_))
-                text += f'{i+1}: IF {antecedent} THEN ({self.target_} == {consequent}) [{precision}, {recall}]\n'
+                text += f'{i+1}: IF {antecedent} THEN ({self.target_} == {label}) [{precision}, {recall}]\n'
 
             return text
         else:

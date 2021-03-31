@@ -1,9 +1,9 @@
+import os
 import time
 import numpy as np
 import pandas as pd
 
 from prism import Prism
-from data import load_hepatitis, load_cmc, load_nursery
 
 from sklearn.metrics import accuracy_score
 from sklearn.model_selection import train_test_split
@@ -12,6 +12,28 @@ from click import Choice
 
 import warnings
 warnings.filterwarnings('ignore') 
+
+
+def load_hepatitis():
+    path = os.path.join('data', 'hepatitis.csv')
+    df = pd.read_csv(path)
+    return df
+
+
+def load_cmc():
+    path = os.path.join('data', 'cmc.csv')
+    df = pd.read_csv(path)
+    df = df.astype(str)
+
+    num_attr = ['Wifes_age', 'Number_of_children_ever_born']
+    df[num_attr] = df[num_attr].astype(int)
+    return df
+
+
+def load_nursery():
+    path = os.path.join('data', 'nursery.csv')
+    df = pd.read_csv(path)
+    return df
 
 
 @click.command()
@@ -60,7 +82,7 @@ def main(dataset, seed):
     t1 = time.time()
 
     print(prism)
-    print('\nCompute time:', round(t1 - t0, 2))
+    print(f'Compute time: {round(t1 - t0, 2)}s')
 
     y_pred = prism.predict(df_test)
     y_true = df_test[target]
