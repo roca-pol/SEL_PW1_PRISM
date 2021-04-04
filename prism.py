@@ -4,27 +4,74 @@ from sklearn.preprocessing import KBinsDiscretizer
 
 
 class Rule:
+    """
+    Class that represents a rule.
+
+    Parameters
+    ----------
+    label : any
+        Target class label of the rule.
+
+    Attributes
+    ----------
+    label : any
+        Target class label of the rule.
+
+    antecedent : list
+        List of selectors that form the antecedent.
+
+    precision : float
+        Precision score of the rule.
+
+    recall : float
+        Recall or coverage score of the rule.
+    """
     def __init__(self, label):
         self.label = label
         self.antecedent = []
-        self.precision = None
-        self.recall = None
+        self.precision = 0.0
+        self.recall = 0.0
 
 
 class Prism:
+    """
+    PRISM rule inducer algorithm.
 
+    `fit` this classifier to produce the set of rules then use it
+    to `predict` labels for a set of instances.
+    """
     _op_map = {
         '>=': lambda a, b: a >= b,
         '<': lambda a, b: a < b,
         '==': lambda a, b: a == b
     }
 
-    def __init__(self, filename=None):
-        if filename is not None:
-            self._parse_file(filename)
-
     def fit(self, data: pd.DataFrame, target='class', n_bins=3):
+        """
+        Induce a ruleset from the given set of instances.
 
+        Parameters
+        ----------
+        data : DataFrame
+            Input training dataset used to induce the rules.
+        
+        target : str, default='class'
+            Name of the attribute that represents class labels.
+
+        n_bins : int, default=3
+            Number of bins that numeric attributes will be discretized to.
+
+        Attributes
+        ----------
+        ruleset_ : list
+            The list of rules induced from the dataset.
+
+        target_ : str
+            Name of the attribute that represents class labels.
+
+        majority_ : any
+            Label with the largest amount of instances.
+        """
         # discretize numerical attributes if there are any
         num_attr = data.select_dtypes(include=['number']).columns
         num_attr = num_attr.drop(target) if target in num_attr else num_attr
@@ -98,8 +145,27 @@ class Prism:
         self.ruleset_ = ruleset
         self.target_ = target
         self.majority_ = data[target].mode().values[0]
+        return self
 
     def predict(self, data: pd.DataFrame):        
+        """
+        Classify all the instances in the provided dataset using the
+        rules induced with the previous `fit`.
+
+        Parameters
+        ----------
+        data : DataFrame, shape (n_samples, n_attributes)
+            Set of instances to classify.
+
+        Returns
+        -------
+        labels : array, shape (n_samples,)
+            Class labels of the provided instances.
+        """
+        if not hasattr(self, 'ruleset_'):
+            raise AttributeError("This instance is not fitted yet. Call 'fit' "
+                "with the appropriate arguments before using this model.")
+
         labels = []
         for _, ins in data.iterrows():
             label = None

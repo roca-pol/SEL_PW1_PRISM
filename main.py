@@ -23,8 +23,8 @@ def load_hepatitis():
 def load_cmc():
     path = os.path.join('data', 'cmc.csv')
     df = pd.read_csv(path)
-    df = df.astype(str)
 
+    df = df.astype(str)
     num_attr = ['Wifes_age', 'Number_of_children_ever_born']
     df[num_attr] = df[num_attr].astype(int)
     return df
@@ -37,12 +37,11 @@ def load_nursery():
 
 
 @click.command()
-@click.option('-d', '--dataset', type=Choice(['hepatitis', 'cmc', 'nursery']), default='hepatitis',
+@click.option('-d', '--dataset', type=Choice(['hepatitis', 'cmc', 'nursery']), required=True,
               help='Dataset name.')
-@click.option('-s', '--seed', type=int, default=101, help='Random seed used when shuffling data before'
-              ' splitting it into train and test sets.')
+@click.option('-s', '--seed', type=int, default=101, show_default=True, help='Random seed used when'
+              ' shuffling data before splitting it into train and test sets.')
 def main(dataset, seed):
-
     # load the corresponding dataset into a dataframe
     if dataset == 'hepatitis':
         df = load_hepatitis()
