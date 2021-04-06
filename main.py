@@ -10,9 +10,6 @@ from sklearn.model_selection import train_test_split
 import click
 from click import Choice
 
-import warnings
-warnings.filterwarnings('ignore') 
-
 
 def load_hepatitis():
     path = os.path.join('data', 'hepatitis.csv')
@@ -51,7 +48,7 @@ def main(dataset, seed):
     elif dataset == 'cmc':
         df = load_cmc()
         target = 'Contraceptive_method_used'
-        n_bins = 3
+        n_bins = 5
 
     elif dataset == 'nursery':
         df = load_nursery()
@@ -62,7 +59,7 @@ def main(dataset, seed):
     df_train = df_train.copy()
     df_test = df_test.copy()
 
-    # preprocessing - missing values
+    # preprocessing - fill missing values
     num_attr = df.select_dtypes(include=['number']).columns
     means = df_train[num_attr].mean()
     df_train.fillna(means, inplace=True)
@@ -75,6 +72,7 @@ def main(dataset, seed):
     df_train.fillna(modes, inplace=True)
     df_test.fillna(modes, inplace=True)
 
+    # induce rules
     prism = Prism()
     t0 = time.time()
     prism.fit(df_train, target=target, n_bins=n_bins)
@@ -82,7 +80,10 @@ def main(dataset, seed):
 
     print(prism)
     print(f'Compute time: {round(t1 - t0, 2)}s')
+    print('Number of rules:', len(prism.ruleset_))
+    print('Average number of selectors:', round(np.mean([len(rule.antecedent) for rule in prism.ruleset_]), 2))
 
+    # apply rules
     y_pred = prism.predict(df_test)
     y_true = df_test[target]
     print('Accuracy:', round(accuracy_score(y_true, y_pred), 4))
